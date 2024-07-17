@@ -1,0 +1,20 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            // "program": "process_result.py",
+            "env": {"CUDA_VISIBLE_DEVICES": "0"},
+            "program": "qserve_e2e_generation.py",
+            "args": ["--model", "/root/workspace/external_data/pulse_v14_20b_gpt4_hf/quant_qserve/base-w4a8-per-channel",  "--max-num-seqs", "4096", "--ifb-mode", "--precision", "w4a8kv4", "--quant-path", "/root/workspace/external_data/pulse_v14_20b_gpt4_hf/quant_qserve/base-w4a8-per-channel", "--group-size", "-1"],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
+}
+// python qserve_e2e_generation.py --model /root/workspace/external_data/pulse_v13_1_20b_gpt4_hf/quant_qserve/base-w4a8-per-channel --max-num-seqs 4096 --ifb-mode --precision w4a8kv4 --quant-path /root/workspace/external_data/pulse_v13_1_20b_gpt4_hf/quant_qserve/base-w4a8-per-channel --group-size -1 >> result.log
