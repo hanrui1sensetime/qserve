@@ -56,7 +56,7 @@ def get_nvcc_cuda_version(cuda_dir: str) -> Version:
     return nvcc_cuda_version
 
 
-def get_torch_arch_list() -> Set[str]:
+def get_torch_arch_list() -> List[str]:
     # TORCH_CUDA_ARCH_LIST can have one or more architectures,
     # e.g. "8.0" or "7.5,8.0,8.6+PTX". Here, the "8.6+PTX" option asks the
     # compiler to additionally include PTX code that can be runtime-compiled
@@ -88,7 +88,7 @@ def get_torch_arch_list() -> Set[str]:
             "excluded from the `TORCH_CUDA_ARCH_LIST` env variable "
             f"({env_arch_list}). Supported CUDA architectures are: "
             f"{valid_archs}.")
-    return arch_list
+    return list(arch_list)
 
 
 # First, check the TORCH_CUDA_ARCH_LIST environment variable.
@@ -117,6 +117,7 @@ else:
             "Kernels for GPUs with different compute capabilities cannot be installed simultaneously right now.\nPlease restrict the length of TORCH_CUDA_ARCH_LIST to 1."
         )
     else:
+        print(f'debugging what is compute_capabilities: {compute_capabilities}')
         gpu_version = compute_capabilities[0].replace(".", "")
 
 nvcc_cuda_version = get_nvcc_cuda_version(CUDA_HOME)

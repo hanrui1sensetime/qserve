@@ -7,9 +7,12 @@
 
 import argparse
 from typing import List, Tuple
-import random
+import json
+#import random
 
 import datasets
+
+import time
 
 import qserve.utils.constants
 from qserve import EngineArgs, LLMEngine, SamplingParams
@@ -21,30 +24,43 @@ BG_GREEN = "\033[42m"
 BG_PINK = "\033[45m"
 RESET = "\033[0m"
 
-random.seed(484)
+# random.seed(484)
 
 
-def create_test_prompts(conv_t, num_prompts=256) -> List[Tuple[str, SamplingParams]]:
+def create_test_prompts(conv_t, num_prompts=4096) -> List[Tuple[str, SamplingParams]]:
     """Create a list of test prompts with their sampling parameters."""
+    assert num_prompts == 4096
     sampling_params = SamplingParams(
-        temperature=0.0, top_p=1.0, stop_token_ids=[128001, 128009], max_tokens=1024
+        temperature=0.0, top_p=1.0, stop_token_ids=[1, 92548], max_tokens=2048
     )
-    dataset = datasets.load_dataset("allenai/WildChat")["train"]
+    # dataset = datasets.load_dataset("allenai/WildChat")["train"]
+    dataset = datasets.load_dataset(
+        "json",
+        data_files='/root/workspace/external_data/MedBenchAll/all_test.jsonl',
+        # data_files='debug_test.jsonl',
+        split="train",
+    )
     prompts = []
     i = 0
     len_dataset = len(dataset)
+    print(len_dataset)
     while len(prompts) < min(len_dataset, num_prompts):
         # prompts.append(dataset[i])
-        conv = get_conv_template(conv_t)
+        # conv = get_conv_template(conv_t)
         # skip unsafe conversations.
+        '''
         rand_idx = random.randint(0, len_dataset)
         should_skip = dataset[rand_idx]["toxic"] or dataset[rand_idx]["redacted"]
         if should_skip:
             continue
-        raw_prompt = dataset[rand_idx]["conversation"][0]["content"]
-        conv.append_message(conv.roles[0], raw_prompt)
-        conv.append_message(conv.roles[1], "")
-        prompts.append(conv.get_prompt())
+        '''
+        question = dataset[i]['question']
+        # question = "你是谁，撰写500个字介绍自己"
+        raw_prompt = f"<|iim_start|>You are 大医, a large language model of PULSE architecture trained by 商汤科技. Answer as concisely as possible.\nKnowledge cutoff: 2021-09-01\nCurrent date: 2024-06-03\n\n# Environment\n\nYou can run Python code in a restricted Jupyter Notebook environment. You can only use the '\''get_user_input'\'' function to get text entered by the user, all other functions and operators are disabled.<|im_end|><|aim_start|><|code_start|>get_user_input()<|im_end|><|fim_start|>{question}<|im_end|><|aim_start|>"
+        # conv.append_message(conv.roles[0], raw_prompt)
+        # conv.append_message(conv.roles[1], "")
+        prompts.append(raw_prompt)
+        i += 1
     print(f"{BG_PINK}There are {len(prompts)} prompts to be processed.{RESET}")
     return [(prompt, sampling_params) for prompt in prompts]
 
@@ -78,33 +94,39 @@ def process_requests(engine: LLMEngine, test_prompts: List[Tuple[str, SamplingPa
     # seq_group_metadata_list, scheduler_outputs = engine.step()
     iter = 1
     finished = 0
-    while engine.has_unfinished_requests():
-        ### Schedule iteration 1 (context stage)
-        requests_outputs = engine.step()
-        if len(requests_outputs) == 0:
-            break
-        print(
-            BG_BLUE
-            + "*" * 5
-            + "Iteration %d (remaining req.s = %d)"
-            % (iter, len(requests_outputs) + len(engine.scheduler.waiting))
-            + "*" * 5
-            + RESET
-        )
-        for request_output in requests_outputs:
-            if request_output["finished"]:
-                finished += 1
-                print(
-                    f"{BG_GREEN}[Conversation {request_output['id']} output]{RESET} {request_output['text']}"
-                )
-        iter += 1
-        if engine.ifb_mode == False:
-            if iter == max_gen_length:  # Early exit
-                for request_output in requests_outputs:
-                    print(
-                        f"{BG_GREEN}[Conversation {request_output['id']} output]{RESET} {request_output['tokens']}"
-                    )
+    start = time.time()
+    with open('qserve_result_20bv14.jsonl', "w", encoding="utf8") as f:
+        while engine.has_unfinished_requests():
+            ### Schedule iteration 1 (context stage)
+            requests_outputs = engine.step()
+            if len(requests_outputs) == 0:
                 break
+            print(
+                BG_BLUE
+                + "*" * 5
+                + "Iteration %d (remaining req.s = %d)"
+                % (iter, len(requests_outputs) + len(engine.scheduler.waiting))
+                + "*" * 5
+                + RESET
+            )
+            for request_output in requests_outputs:
+                if request_output["finished"]:
+                    finished += 1
+                    print(
+                        f"{BG_GREEN}[Conversation {request_output['id']} output]{RESET}"
+                    )
+                    ans = {"question": request_output['text'].split('<|fim_start|>')[1].split('<|im_end|><|aim_start|>')[0], "answer": request_output['text'].split('<|aim_start|>')[-1].split('<|code_start|>')[0]}
+                    f.write(json.dumps(ans, ensure_ascii=False) + "\n")
+                    end = time.time()
+                    print(f'end - start: {end - start}')
+            iter += 1
+            if engine.ifb_mode == False:
+                if iter == max_gen_length:  # Early exit
+                    for request_output in requests_outputs:
+                        print(
+                            f"{BG_GREEN}[Conversation {request_output['id']} output]{RESET} {request_output['tokens']}"
+                        )
+                    break
     assert num_test_prompts == finished
     print(f"{BG_PINK}{finished} requests are finished.{RESET}")
 
